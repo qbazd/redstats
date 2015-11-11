@@ -19,6 +19,9 @@ Gem::Specification.new do |s|
   s.add_dependency "redis", '~> 3.2.1'
   s.add_dependency "nido", '~> 1.0.0'
   s.add_dependency 'activesupport', '~> 4.1'
+
   s.add_development_dependency "cutest", '~> 1.2.2'
+  s.add_development_dependency 'timecop', '>= 0.5.9.1'
+  s.add_development_dependency 'awesome_print', '>= 1.6.1'
 
 end

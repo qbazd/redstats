@@ -1,6 +1,7 @@
 require_relative 'helper'
 
 setup do 
+  Timecop.freeze(Time.local(2013, 01, 01, 01, 01))
   RedStats.namespace = "test"
 end
 
@@ -13,14 +14,14 @@ test 't_slash' do
 
 end
 
-test 'simple count sum' do
+test 'simple count' do
   ts = Time.parse("2015-11-07_19:23:00Z")
 
   100.times{
     RedStats.stat("downloads", nil, ts)
   }
 
-  assert RedStats.get_stats("downloads", :year, ts, 0) == [["Y2015", [100, 0]]]
+  assert RedStats.get_stats("downloads", :year, ts, 0)["Y2015"][:count] == 100
 
 end
 
@@ -33,14 +34,10 @@ test 'sum and count on many levels' do
   RedStats.stat("downloads/bar", 3, ts)
   RedStats.stat("downloads/bar/baz", 5, ts)
 
-  assert RedStats.get_stats("downloads", :year, ts, 0) == [["Y2015", [5, 15]]]
-  assert RedStats.get_stats("downloads/foo", :year, ts, 0) == [["Y2015", [2, 5]]]
-  assert RedStats.get_stats("downloads/foo/bar", :year, ts, 0) == [["Y2015", [1, 2]]]
-  assert RedStats.get_stats("downloads/bar", :year, ts, 0) == [["Y2015", [2, 8]]]
-  assert RedStats.get_stats("downloads/bar/baz", :year, ts, 0) == [["Y2015", [1, 5]]]
-  assert RedStats.get_stats("downloads/baz", :year, ts, 0) == [["Y2015", [0, 0]]]
+  stats = RedStats.get_stats("downloads", :year, ts, 0)["Y2015"]
 
-
+  assert  stats[:count] == 5
+  assert  stats[:sum] == 15
 
 end
 
@@ -51,42 +48,77 @@ test 'count and sum in all periods should be equal' do
   100.times{
     RedStats.stat("downloads", 2, ts)
   }
-
-  assert RedStats.get_stats("downloads", :year, ts, 0)  == [["Y2015", [100, 200]]]
-  assert RedStats.get_stats("downloads", :month, ts, 0) == [["M2015-11", [100, 200]]]
-  assert RedStats.get_stats("downloads", :day, ts, 0)   == [["D2015-11-07", [100, 200]]]
-  assert RedStats.get_stats("downloads", :hour, ts, 0)  == [["H2015-11-07_19", [100, 200]]]
+  
+  {year: "Y2015", month: "M2015-11", day: "D2015-11-07", hour:"H2015-11-07_19"}.each{|prd, prd_key| 
+    stats = RedStats.get_stats("downloads", prd, ts, 0)[prd_key]
+    assert stats[:count] == 100
+    assert stats[:sum] == 200
+  }
 
 end
 
 test 'count for long hours' do
+
   ts = Time.parse("2015-11-07_19:23:00Z")
 
   100.times{|x|
     RedStats.stat("downloads", 2, ts - (3600 * x))
   }
+  
+  stats = RedStats.get_stats("downloads", :year, ts, -4).to_a.last[1]
+  assert [stats[:count], stats[:sum]] == [100,200]
 
-  assert RedStats.get_stats("downloads", :year, ts, -4)   == [["Y2011", [0, 0]], ["Y2012", [0, 0]], ["Y2013", [0, 0]], ["Y2014", [0, 0]], ["Y2015", [100, 200]]]
-  assert RedStats.get_stats("downloads", :month, ts, -4)  == [["M2015-07", [0, 0]], ["M2015-08", [0, 0]], ["M2015-09", [0, 0]], ["M2015-10", [0, 0]], ["M2015-11", [100, 200]]]
-  assert RedStats.get_stats("downloads", :day, ts, -4)    == [["D2015-11-03", [8, 16]], ["D2015-11-04", [24, 48]], ["D2015-11-05", [24, 48]], ["D2015-11-06", [24, 48]], ["D2015-11-07", [20, 40]]]
-  assert RedStats.get_stats("downloads", :hour, ts, -4)   == [["H2015-11-07_15", [1, 2]], ["H2015-11-07_16", [1, 2]], ["H2015-11-07_17", [1, 2]], ["H2015-11-07_18", [1, 2]], ["H2015-11-07_19", [1, 2]]]
-  assert RedStats.get_stats("downloads", :hour, ts, -100).map{|k,v| v[0]}.reduce(:+) == 100
-  assert RedStats.get_stats("downloads", :hour, ts, -100).map{|k,v| v[1]}.reduce(:+) == 200
+  stats = RedStats.get_stats("downloads", :month, ts, -4).to_a.last[1]
+  assert [stats[:count], stats[:sum]] == [100,200]
 
 end
 
 test 'get childs' do 
+  ts1 = Time.now 
+  ts2 = Time.now.utc 
+
+  RedStats.stat("downloads", 2, ts1)
+  RedStats.stat("downloads/foo", 3, ts2)
+  RedStats.stat("downloads/foo/bar", 2, ts1)
+  RedStats.stat("downloads/bar", 3, ts2)
+  RedStats.stat("downloads/bar/baz", 5, ts1)
+
+  childs = RedStats.get_childs("downloads", :year) 
+  assert childs.keys == %w[foo bar]
+
+end
+
+
+test 'UTC vs local' do 
+  ts1 = Time.now
+  ts2 = Time.now.utc 
+
+  RedStats.stat("downloads", 2, ts1)
+  RedStats.stat("downloads/foo", 3, ts2)
+  RedStats.stat("downloads/foo/bar", 2, ts1)
+  RedStats.stat("downloads/bar", 3, ts2)
+  RedStats.stat("downloads/bar/baz", 5, ts1)
+
+  stats = RedStats.get_stats("downloads", :hour, ts1, 0).to_a.last[1]
+  assert [stats[:count], stats[:sum]] == [5,15]
+
+  stats = RedStats.get_stats("downloads", :hour, ts2, 0).to_a.last[1]
+  assert [stats[:count], stats[:sum]] == [5,15]
+
+end
+
+test 'min max' do 
+
   ts = Time.parse("2015-11-07_19:23:00Z")
 
-  RedStats.stat("downloads", 2, ts)
-  RedStats.stat("downloads/foo", 3, ts)
-  RedStats.stat("downloads/foo/bar", 2, ts)
-  RedStats.stat("downloads/bar", 3, ts)
-  RedStats.stat("downloads/bar/baz", 5, ts)
+  RedStats.stat_w_minmax("downloads", 2, ts)
+  RedStats.stat_w_minmax("downloads/foo", 3, ts)
+  RedStats.stat_w_minmax("downloads/foo/bar", -4, ts)
+  RedStats.stat_w_minmax("downloads/bar", 3, ts)
+  RedStats.stat_w_minmax("downloads/bar/baz", 5, ts)
 
-  assert RedStats.get_childs("downloads") == ["foo", "bar"]
-  assert RedStats.get_childs("downloads/foo") ==["bar"]
-  assert RedStats.get_childs("downloads/bar") == ["baz"]
-  assert RedStats.get_childs("downloads/bar/baz") == []
+  stats = RedStats.get_stats("downloads", :year, ts, 0).to_a.first[1]
+
+  assert [stats[:count],stats[:sum],stats[:min], stats[:max]] == [5, 9, -4, 5]
 
 end
