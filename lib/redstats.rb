@@ -34,15 +34,14 @@ module RedStats
   end
 
   def self.t_slash(str)
-    str.gsub(/\/+$/,'') + "/"
+    "/"+ (str.gsub(/\/+$/,'') + "/").gsub(/^\/+/,'')  
   end
 
   def self.each_key_sublevel(key)
-    keys = key.gsub(/\/*$/,'').split("/")
-    x = keys.count - 1
-    while(x >= 0) do 
-      yield(keys[0..x].join("/") + "/")
-      x -= 1
+    keys = t_slash(key)
+    while(keys != "/" ) do 
+      yield(keys)
+      keys = t_slash(File.dirname(keys))
     end
   end
 
@@ -58,7 +57,7 @@ module RedStats
     redis.pipelined do |pipe|
       key_levels.each{|key_level|
         #set dir and touch
-        pipe.hset( self.basekey["stats"][key_level], "ts", ts_now.to_i )
+        pipe.hset( self.basekey["stats"][key_level], "mtime", ts_now.to_i )
         pipe.sadd( self.basekey["dirs"][t_slash(File.dirname(key_level))], File.basename(key_level) )
 
         prds.each{|field|
@@ -98,7 +97,7 @@ module RedStats
         redis_watch.multi do |redis_multi|
           [key_levels, *(min_max.transpose)].transpose.each{|key_level, *kl_prds|
             #ap [key_level,kl_prds]
-            redis_multi.hset( self.basekey["stats"][key_level], "ts", ts_now.to_i )
+            redis_multi.hset( self.basekey["stats"][key_level], "mtime", ts_now.to_i )
             redis_multi.sadd( self.basekey["dirs"][t_slash(File.dirname(key_level))], File.basename(key_level) )
 
             [prds, kl_prds].transpose.each{|field,minmax|
@@ -129,17 +128,16 @@ module RedStats
     childs = redis.smembers(self.basekey["dirs"][key_path])
 
     ret = redis.pipelined do |pipe| 
-        childs.each{|child| 
-            child_path = t_slash(key_path + "#{child}")
-            pipe.hget(self.basekey["stats"][child_path], "mtime")
-            pipe.hmget( self.basekey["stats"][child_path], "count"+prd_field, "sum"+prd_field, "min"+prd_field, "max"+prd_field )
-        }
+      childs.each{|child|
+        child_path = t_slash(key_path + "#{child}")
+        pipe.hget( self.basekey["stats"][child_path], "mtime")
+        pipe.hmget( self.basekey["stats"][child_path], "count"+prd_field, "sum"+prd_field, "min"+prd_field, "max"+prd_field )
+      }
     end
 
     ret = ret.each_slice(2).to_a
     
     ret.map!{|_ts, ret_prd| 
-      #ap [_ts, ret_prds]
       ret_prd = [ret_prd.map{|e| e.nil? ? nil : e.to_i }].map{|count,sum,min,max| { count: count, sum:sum , min: min, max: max} }.first
 
       {

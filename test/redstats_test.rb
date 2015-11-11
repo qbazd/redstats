@@ -7,12 +7,22 @@ end
 
 test 't_slash' do
 
-  assert RedStats.t_slash("downloads") == "downloads/"
-  assert RedStats.t_slash("downloads/") == "downloads/"
-  assert RedStats.t_slash("downloads/foo") == "downloads/foo/"
-  assert RedStats.t_slash("downloads/foo/") == "downloads/foo/"
+  assert RedStats.t_slash("") == "/"
+  assert RedStats.t_slash("/downloads") == "/downloads/"
+  assert RedStats.t_slash("downloads/") == "/downloads/"
+  assert RedStats.t_slash("/downloads/foo") == "/downloads/foo/"
+  assert RedStats.t_slash("downloads/foo/") == "/downloads/foo/"
 
 end
+
+test 'each_levels' do
+  paths = []
+  RedStats.each_key_sublevel("downloads/foo/downloads/foo/"){|x|  paths << x }
+
+  assert paths == ["/downloads/foo/downloads/foo/", "/downloads/foo/downloads/", "/downloads/foo/", "/downloads/"]
+
+end
+
 
 test 'simple count' do
   ts = Time.parse("2015-11-07_19:23:00Z")
@@ -75,7 +85,7 @@ end
 
 test 'get childs' do 
   ts1 = Time.now 
-  ts2 = Time.now.utc 
+  ts2 = ts1.dup.utc 
 
   RedStats.stat("downloads", 2, ts1)
   RedStats.stat("downloads/foo", 3, ts2)
@@ -83,7 +93,7 @@ test 'get childs' do
   RedStats.stat("downloads/bar", 3, ts2)
   RedStats.stat("downloads/bar/baz", 5, ts1)
 
-  childs = RedStats.get_childs("downloads", :year) 
+  childs = RedStats.get_childs("downloads", :year,ts1) 
   assert childs.keys == %w[foo bar]
 
 end
@@ -120,5 +130,21 @@ test 'min max' do
   stats = RedStats.get_stats("downloads", :year, ts, 0).to_a.first[1]
 
   assert [stats[:count],stats[:sum],stats[:min], stats[:max]] == [5, 9, -4, 5]
+
+end
+
+test 'get childs values' do 
+
+  ts = Time.parse("2015-11-07_19:23:00Z")
+
+  RedStats.stat_w_minmax("downloads", 2, ts)
+  RedStats.stat_w_minmax("downloads/foo", 3, ts)
+  RedStats.stat_w_minmax("downloads/foo/bar", -4, ts)
+  RedStats.stat_w_minmax("downloads/bar", 3, ts)
+  RedStats.stat_w_minmax("downloads/bar/baz", 5, ts)
+
+  stats = RedStats.get_childs("downloads", :hour, ts)["bar"]
+
+  assert [stats[:mtime],stats[:stats][:count],stats[:stats][:sum],stats[:stats][:min], stats[:stats][:max]] == [Time.now, 2, 8, 3, 5]
 
 end
