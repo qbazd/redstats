@@ -35,6 +35,9 @@ RedStats.stat("http_connections/#{user}/#{ip}/#{controller}/#{action}")
 # tracks downloads and filesizes to compute mean transfers
 RedStats.stat("downloaded_files_sizes/#{user}/#{ip}/#{file_ext}", File.size(dowloaded_file))
 
+# min and max also
+RedStats.stat_w_minmax("http_connections/#{user}/#{ip}/#{controller}/#{action}", gen_time)
+
 # get stats for path:
 RedStats.get_stats("downloads/user1/127.0.0.1/robot.txt", :day, Time.now, -7)
 
