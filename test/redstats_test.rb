@@ -59,7 +59,7 @@ test 'count and sum in all periods should be equal' do
     RedStats.stat("downloads", 2, ts)
   }
   
-  {year: "Y2015", month: "M2015-11", day: "D2015-11-07", hour:"H2015-11-07_19"}.each{|prd, prd_key| 
+  {year: "Y2015", month: "m2015-11", day: "d2015-11-07", hour:"H2015-11-07_19", minute:"M2015-11-07_19:23"}.each{|prd, prd_key| 
     stats = RedStats.get_stats("downloads", prd, ts, 0)[prd_key]
     assert stats[:count] == 100
     assert stats[:sum] == 200

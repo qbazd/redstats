@@ -3,7 +3,7 @@ module RedStats
   # UTC is time zone of Period.
   class Period
 
-  	PERIODS_FORMATS = { year: 'Y%Y', month: 'M%Y-%m', day: 'D%Y-%m-%d', hour: 'H%Y-%m-%d_%H' }
+  	PERIODS_FORMATS = { year: 'Y%Y', month: 'm%Y-%m', day: 'd%Y-%m-%d', hour: 'H%Y-%m-%d_%H', minute: 'M%Y-%m-%d_%H:%M' }
 
   	def initialize(period)
       raise "wrong period" unless PERIODS_FORMATS.keys.include?(period)
