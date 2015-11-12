@@ -117,13 +117,13 @@ module RedStats
 
 
   #Get stats of all childs of given key_path
-  def self.get_childs(key_path, period, ts = Time.now.utc)
+  def self.get_childs(key_path, period, ts = Time.now.utc, units_diff = 0)
 
     ts = ts.utc
 
     key_path = t_slash(key_path)
 
-    prd_field = RedStats::Period.new(period).key(ts: ts)
+    prd_field = RedStats::Period.new(period).key(ts: ts, diff: units_diff)
 
     childs = redis.smembers(self.basekey["dirs"][key_path])
 
